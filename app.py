@@ -267,11 +267,20 @@ def create_dataset(destination_folder, size, *inputs):
     return destination_folder
 
 
+import zipfile
+
+
 def run_captioning(images, concept_sentence, *captions):
     print(f"run_captioning")
     print(f"concept sentence {concept_sentence}")
     print(f"captions {captions}")
-    #Load internally to not consume resources for training
+
+    # Create a new folder for captions
+    captions_folder = "captions"
+    if not os.path.exists(captions_folder):
+        os.makedirs(captions_folder)
+
+    # Load internally to not consume resources for training
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"device={device}")
     torch_dtype = torch.float16
@@ -307,7 +316,21 @@ def run_captioning(images, concept_sentence, *captions):
             caption_text = f"{concept_sentence} {caption_text}"
         captions[i] = caption_text
 
+        # Save caption to a text file with the same base name as the image file
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        caption_file_path = os.path.join(captions_folder, f"{base_name}.txt")
+        with open(caption_file_path, 'w') as caption_file:
+            caption_file.write(caption_text)
+
         yield captions
+
+    # Compress the captions folder into a .zip file
+    zip_file_path = "captions.zip"
+    with zipfile.ZipFile(zip_file_path, 'w') as zipf:
+        for root, _, files in os.walk(captions_folder):
+            for f in files:
+                zipf.write(os.path.join(root, f), arcname=f)
+
     model.to("cpu")
     del model
     del processor
@@ -448,10 +471,10 @@ def gen_sh(
     pretrained_model_path = resolve_path(model_path)
 
     clip_path = resolve_path("models/clip/clip_l.safetensors")
-    t5_path = resolve_path("models/clip/t5xxl_fp16.safetensors")
+    t5_path = resolve_path("models/clip/t5xxl_fp8_e4m3fn.safetensors")
     ae_path = resolve_path("models/vae/ae.sft")
     sh = f"""accelerate launch {line_break}
-  --mixed_precision bf16 {line_break}
+  --mixed_precision fp8 {line_break}
   --num_cpu_threads_per_process 1 {line_break}
   sd-scripts/flux_train_network.py {line_break}
   --pretrained_model_name_or_path {pretrained_model_path} {line_break}
@@ -464,8 +487,8 @@ def gen_sh(
   --max_data_loader_n_workers {workers} {line_break}
   --seed {seed} {line_break}
   --gradient_checkpointing {line_break}
-  --mixed_precision bf16 {line_break}
-  --save_precision bf16 {line_break}
+  --mixed_precision fp8 {line_break}
+  --save_precision fp8 {line_break}
   --network_module networks.lora_flux {line_break}
   --network_dim {network_dim} {line_break}
   {optimizer}{sample}
