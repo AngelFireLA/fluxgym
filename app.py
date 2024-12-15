@@ -362,7 +362,7 @@ def download(base_model):
     if not os.path.exists(t5xxl_path):
         print(f"download t5xxl_fp8_e4m3fn.safetensors")
         gr.Info(f"Downloading t5xxl...")
-        hf_hub_download(repo_id="comfyanonymous/flux_text_encoders", local_dir=clip_folder, filename="t5xxl_fp16.safetensors")
+        hf_hub_download(repo_id="comfyanonymous/flux_text_encoders", local_dir=clip_folder, filename="t5xxl_fp8_e4m3fn.safetensors")
 
 
 def resolve_path(p):
